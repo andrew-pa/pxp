@@ -6,9 +6,27 @@
 #include <texture2d.h>
 #include <render_texture.h>
 #include <states.h>
+#include <mesh.h>
+
+mesh* create_ndc_quad(ComPtr<ID3D11Device> device)
+{
+	dvertex v[] = 
+	{
+		dvertex(-1, -1, 0, 0, 0, -1, 1, 0, 0, 0, 1),
+		dvertex(-1,  1, 0, 0, 0, -1, 0, 1, 0, 0, 0),
+		dvertex( 1,  1, 0, 0, 0, -1, 1, 0, 0, 1, 0),
+		dvertex( 1, -1, 0, 0, 0, -1, 1, 0, 0, 1, 1),
+	};
+	uint i[] =
+	{
+		0, 1, 2, 0, 2, 3,
+	};
+	return new mesh(device, v, i, 6, 4, sizeof(dvertex), "NDC_QUAD");
+}
 
 class pxp_app : public dx_app
 {
+	mesh* q;
 public:
 	pxp_app() : dx_app(4, true)
 	{
@@ -16,10 +34,15 @@ public:
 
 	void load() override
 	{
+		q = create_ndc_quad(device);
 	}
 
 	void update(float t, float dt) override
 	{
+		if (windowSizeChanged)
+		{
+			windowSizeChanged = false;
+		}
 	}
 
 	void render(float t, float dt) override
