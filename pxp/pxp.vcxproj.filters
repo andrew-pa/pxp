@@ -20,10 +20,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="ps.hlsl">
+    <FxCompile Include="vs.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
-    <FxCompile Include="vs.hlsl">
+    <FxCompile Include="sponge_ps.hlsl">
       <Filter>Source Files</Filter>
     </FxCompile>
   </ItemGroup>
