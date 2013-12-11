@@ -40,12 +40,17 @@ struct bvh_node
 	uint left_ptr; //-1 = right_ptr is ptr to triangle
 	float3 aabb_max;
 	uint right_ptr;
+	bvh_node(float3 min, float3 max, uint l, uint r)
+		: aabb_min(min), aabb_max(max), left_ptr(l), right_ptr(r) {}
 };
 
 struct tri
 {
 	uint a, b, c;
 	uint mesh_id;
+	tri(uint aa, uint bb, uint cc, uint mmesh_id)
+		: a(aa), b(bb), c(cc), mesh_id(mmesh_id)
+	{}
 };
 
 struct vertex
@@ -53,12 +58,16 @@ struct vertex
 	float3 pos;
 	float3 norm;
 	float2 tex;
+	vertex(float3 p, float3 n, float2 t)
+		: pos(p), norm(n), tex(t) {}
 };
 
 struct smesh
 {
 	float4x4 inv_world;
 	float4 color;
+	smesh(float4x4 iw, float4 c)
+		: inv_world(iw), color(c) { }
 };
 
 
@@ -97,6 +106,17 @@ public:
 			posnormtex_layout, _countof(posnormtex_layout));
 		buf = constant_buffer<b>(device, 0, { 0 });
 		
+		vector<bvh_node> bvhdata;
+		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 0));
+		vector<tri> tridata;
+		tridata.push_back(tri(0, 1, 2, 0));
+		vector<vertex> vertexdata;
+		vertexdata.push_back(vertex(float3(-.5f, .5f, 0), float3(0, 0, 1), float2(0, 0)));
+		vertexdata.push_back(vertex(float3(.5f, -.5f, 0), float3(0, 0, 1), float2(1, 1)));
+		vertexdata.push_back(vertex(float3(-.5f, -.5f, 0), float3(0, 0, 1), float2(0, 1)));
+		vector<smesh> meshdata;
+		meshdata.push_back(smesh(float4x4::identity(), float4(0, 1, 0, 0)));
+
 		scene_tree = data_buffer<bvh_node>(device, bvhdata);
 		scene_vertices = data_buffer<vertex>(device, vertexdata);
 		scene_triangles = data_buffer<tri>(device, tridata);
