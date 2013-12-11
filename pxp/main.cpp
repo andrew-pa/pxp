@@ -62,6 +62,8 @@ struct smesh
 };
 
 
+
+
 class pxp_app : public dx_app
 {
 	mesh* q;
@@ -94,6 +96,11 @@ public:
 		s = shader(device, read_data_from_package(L"vs.cso"), read_data_from_package(L"raytrace_ps.cso"),
 			posnormtex_layout, _countof(posnormtex_layout));
 		buf = constant_buffer<b>(device, 0, { 0 });
+		
+		scene_tree = data_buffer<bvh_node>(device, bvhdata);
+		scene_vertices = data_buffer<vertex>(device, vertexdata);
+		scene_triangles = data_buffer<tri>(device, tridata);
+		scene_meshes = data_buffer<smesh>(device, meshdata);
 	}
 
 	void update(float t, float dt) override
@@ -141,8 +148,20 @@ public:
 		dx_app::render(t, dt);
 		s.bind(context);
 		buf.bind(context, shader_stage::Pixel);
+		
+		scene_tree.bind(context, shader_stage::Pixel, 0);
+		scene_vertices.bind(context, shader_stage::Pixel, 1);
+		scene_triangles.bind(context, shader_stage::Pixel, 2);
+		scene_meshes.bind(context, shader_stage::Pixel, 3);
+
 		q->draw(context);
 		buf.unbind(context, shader_stage::Pixel);
+
+		scene_tree.unbind(context, shader_stage::Pixel, 0);
+		scene_vertices.unbind(context, shader_stage::Pixel, 1);
+		scene_triangles.unbind(context, shader_stage::Pixel, 2);
+		scene_meshes.unbind(context, shader_stage::Pixel, 3);
+
 		s.unbind(context);
 	}
 };
