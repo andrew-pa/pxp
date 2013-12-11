@@ -95,7 +95,7 @@ class pxp_app : public dx_app
 
 public:
 	pxp_app() : dx_app(4, true),
-		cam(float3(0,0,0), float3(1, 0, 0), 0.1f, 1000.f, to_radians(45.f))
+		cam(float3(0,0,-2), float3(0, 0, 0), 0.1f, 1000.f, to_radians(45.f))
 	{
 	}
 
@@ -107,15 +107,22 @@ public:
 		buf = constant_buffer<b>(device, 0, { 0 });
 		
 		vector<bvh_node> bvhdata;
-		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 0));
+		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), 1, 2));
+		bvhdata.push_back(bvh_node(float3(-.5f, -.5f, 0), float3(-.5f, .5f, 0), -1, 0));
+		bvhdata.push_back(bvh_node(float3(-.5f, .5f, 0), float3(.5f, .5f, 0), -1, 1));
 		vector<tri> tridata;
 		tridata.push_back(tri(0, 1, 2, 0));
+		tridata.push_back(tri(3, 4, 5, 0));
 		vector<vertex> vertexdata;
 		vertexdata.push_back(vertex(float3(-.5f, .5f, 0), float3(0, 0, 1), float2(0, 0)));
 		vertexdata.push_back(vertex(float3(.5f, -.5f, 0), float3(0, 0, 1), float2(1, 1)));
 		vertexdata.push_back(vertex(float3(-.5f, -.5f, 0), float3(0, 0, 1), float2(0, 1)));
+
+		vertexdata.push_back(vertex(float3(-.5f, .5f, 0), float3(0, 0, 1), float2(0, 0)));
+		vertexdata.push_back(vertex(float3(.5f, -.5f, 0), float3(0, 0, 1), float2(1, 1)));
+		vertexdata.push_back(vertex(float3(.5f, .5f, 0), float3(0, 0, 1), float2(0, 1)));
 		vector<smesh> meshdata;
-		meshdata.push_back(smesh(float4x4::identity(), float4(0, 1, 0, 0)));
+		meshdata.push_back(smesh(float4x4::identity(), float4(1, .5f, 0, 0)));
 
 		scene_tree = data_buffer<bvh_node>(device, bvhdata);
 		scene_vertices = data_buffer<vertex>(device, vertexdata);

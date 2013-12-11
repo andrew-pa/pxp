@@ -51,9 +51,9 @@ bool triangle_hit(uint triptr, in float3 ro, in float3 rd,
 {
 	tri ttt = scene_triangles[triptr];
 	float3 v0 = scene_vertices[ttt.a].pos;
-	float3 v1 = scene_vertices[ttt.b].pos;
-	float3 v2 = scene_vertices[ttt.c].pos;
-	float u, v;
+		float3 v1 = scene_vertices[ttt.b].pos;
+		float3 v2 = scene_vertices[ttt.c].pos;
+		float u, v;
 	float3 e1 = v1 - v0;
 		float3 e2 = v2 - v0;
 		float3 pv = cross(rd, e2);
@@ -113,8 +113,11 @@ bool hit_aabb(in float3 ro, in float3 rd, in float3 amin, in float3 amax)
 }
 
 bool scene_hit(in float3 ro, in float3 rd,
-	inout float t, out float3 norm, out float2 tex)
+	inout float t, out float3 norm, out float2 tex, out uint mesh_id)
 {
+	norm = float3(0, 0, 0);
+	tex = float2(0, 0);
+	mesh_id = -1;
 	uint stack[8];
 	uint stack_ptr = 7;
 	stack[stack_ptr] = 0;
@@ -124,11 +127,15 @@ bool scene_hit(in float3 ro, in float3 rd,
 		bvh_node n = scene_tree[stack[stack_ptr-1]];
 		if (n.left_ptr == -1)
 		{
+			//add world transform
+			mesh_id = scene_triangles[n.right_ptr].mesh_id;
+		//	mesh m = scene_meshes[mesh_id];
+			stack_ptr++;
 			return triangle_hit(n.right_ptr, ro, rd, t, norm, tex);
 		}
 		else if (hit_aabb(ro, rd, n.aabb_min, n.aabb_max))
 		{
-			stack_ptr++; //pop this node
+			//stack_ptr++; //pop this node
 			stack[stack_ptr] = n.right_ptr;
 			stack_ptr--;
 			stack[stack_ptr] = n.left_ptr;
@@ -146,10 +153,12 @@ float4 main(psinput i) : SV_TARGET
 	float3 ro = cam_o;
 	float3 rd = normalize(p.x*uu + p.y*vv + 2.5*ww);
 	float t = 10000;
-	float3 norm = float3(0,0,0); float2 tex = float2(0,0);
-	if (scene_hit(ro, rd, t, norm, tex))
+	float3 norm = float3(0, 0, 0); float2 tex = float2(0, 0);
+		uint mid = -1;
+	if (scene_hit(ro, rd, t, norm, tex, mid))
 	{
-		return float4(0, 1, 0, 1);
+		mesh m = scene_meshes[mid];
+		return float4(m.color.xyz, 1);
 	}
 	else
 	{
