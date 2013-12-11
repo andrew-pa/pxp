@@ -9,6 +9,7 @@
 #include <mesh.h>
 #include <camera.h>
 #include <input.h>
+#include <data_buffer.h>
 
 mesh* create_ndc_quad(ComPtr<ID3D11Device> device)
 {
@@ -31,6 +32,36 @@ static const D3D11_INPUT_ELEMENT_DESC posnormtex_layout[] =
 	{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 };
+
+
+struct bvh_node
+{
+	float3 aabb_min;
+	uint left_ptr; //-1 = right_ptr is ptr to triangle
+	float3 aabb_max;
+	uint right_ptr;
+};
+
+struct tri
+{
+	uint a, b, c;
+	uint mesh_id;
+};
+
+struct vertex
+{
+	float3 pos;
+	float3 norm;
+	float2 tex;
+};
+
+struct smesh
+{
+	float4x4 inv_world;
+	float4 color;
+};
+
+
 class pxp_app : public dx_app
 {
 	mesh* q;
@@ -44,13 +75,15 @@ class pxp_app : public dx_app
 		float3 uu; float uuuu;
 	};
 	constant_buffer<b> buf;
-	float3 camera_pos;
-	float3 camera_targ;
 	camera cam;
+
+	data_buffer<bvh_node> scene_tree;
+	data_buffer<vertex> scene_vertices;
+	data_buffer<tri> scene_triangles;
+	data_buffer<smesh> scene_meshes;
 
 public:
 	pxp_app() : dx_app(4, true),
-		camera_pos(), camera_targ(5, 0, 0),
 		cam(float3(0,0,0), float3(1, 0, 0), 0.1f, 1000.f, to_radians(45.f))
 	{
 	}
@@ -58,7 +91,7 @@ public:
 	void load() override
 	{
 		q = create_ndc_quad(device);
-		s = shader(device, read_data_from_package(L"vs.cso"), read_data_from_package(L"ps.cso"),
+		s = shader(device, read_data_from_package(L"vs.cso"), read_data_from_package(L"raytrace_ps.cso"),
 			posnormtex_layout, _countof(posnormtex_layout));
 		buf = constant_buffer<b>(device, 0, { 0 });
 	}
@@ -107,9 +140,9 @@ public:
 	{
 		dx_app::render(t, dt);
 		s.bind(context);
-		buf.bind(context, ShaderStage::Pixel);
+		buf.bind(context, shader_stage::Pixel);
 		q->draw(context);
-		buf.unbind(context, ShaderStage::Pixel);
+		buf.unbind(context, shader_stage::Pixel);
 		s.unbind(context);
 	}
 };
