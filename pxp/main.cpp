@@ -108,8 +108,8 @@ public:
 		
 		vector<bvh_node> bvhdata;
 		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), 1, 2));
-		bvhdata.push_back(bvh_node(float3(-.5f, -.5f, 0), float3(-.5f, .5f, 0), -1, 0));
-		bvhdata.push_back(bvh_node(float3(-.5f, .5f, 0), float3(.5f, .5f, 0), -1, 1));
+		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 0));
+		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 1));
 		vector<tri> tridata;
 		tridata.push_back(tri(0, 1, 2, 0));
 		tridata.push_back(tri(3, 4, 5, 0));

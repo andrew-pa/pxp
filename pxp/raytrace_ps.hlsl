@@ -112,30 +112,42 @@ bool hit_aabb(in float3 ro, in float3 rd, in float3 amin, in float3 amax)
 	return tmax >= tmin;
 }
 
+static const int stack_size = 8;
+
 bool scene_hit(in float3 ro, in float3 rd,
 	inout float t, out float3 norm, out float2 tex, out uint mesh_id)
 {
 	norm = float3(0, 0, 0);
 	tex = float2(0, 0);
 	mesh_id = -1;
-	uint stack[8];
-	uint stack_ptr = 7;
+	uint stack[stack_size];
+	uint stack_ptr = stack_size-1;
 	stack[stack_ptr] = 0;
 	stack_ptr--; //push root node
-	while (stack_ptr != 7)
+	while (stack_ptr != stack_size-1)
 	{
-		bvh_node n = scene_tree[stack[stack_ptr-1]];
+		bvh_node n = scene_tree[stack[stack_ptr+1]];
 		if (n.left_ptr == -1)
 		{
 			//add world transform
-			mesh_id = scene_triangles[n.right_ptr].mesh_id;
+			uint nmesh_id = scene_triangles[n.right_ptr].mesh_id;
 		//	mesh m = scene_meshes[mesh_id];
 			stack_ptr++;
-			return triangle_hit(n.right_ptr, ro, rd, t, norm, tex);
+			float nt = t;
+			float3 nnorm = norm;
+				float2 ntex = tex;
+			if (triangle_hit(n.right_ptr, ro, rd, nt, nnorm, ntex))
+			{
+				t = nt;
+				norm = nnorm;
+				tex = ntex;
+				mesh_id = nmesh_id;
+				return true;
+			}
 		}
 		else if (hit_aabb(ro, rd, n.aabb_min, n.aabb_max))
 		{
-			//stack_ptr++; //pop this node
+			stack_ptr++; //pop this node
 			stack[stack_ptr] = n.right_ptr;
 			stack_ptr--;
 			stack[stack_ptr] = n.left_ptr;
