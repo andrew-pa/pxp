@@ -155,7 +155,7 @@ void load_obj(const string& fn, vector<bvh_node>& td, vector<tri>& trd, vector<v
 
 void build_bvh(vector<bvh_node>& td, const vector<vertex>& vert, const vector<tri>& ts)
 {
-	//blah
+	//blahasdf
 }
 
 
