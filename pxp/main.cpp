@@ -58,6 +58,7 @@ struct vertex
 	float3 pos;
 	float3 norm;
 	float2 tex;
+	vertex() { }
 	vertex(float3 p, float3 n, float2 t)
 		: pos(p), norm(n), tex(t) {}
 };
@@ -70,7 +71,90 @@ struct smesh
 		: inv_world(iw), color(c) { }
 };
 
+inline float3 readvec3(istream& i)
+{
+	float x, y, z;
+	i >> x >> y >> z;
+	return float3(x, y, z);
+}
 
+void load_obj(const string& fn, vector<bvh_node>& td, vector<tri>& trd, vector<vertex>& vertices,
+	uint mesh_id)
+{
+	vector<float3> poss;
+	vector<float3> norms;
+	vector<float2> texcords;
+
+	vector<uint> indices;
+
+	ifstream inf(fn);
+	char comm[256] = { 0 };
+
+	while (inf)
+	{
+		inf >> comm;
+		if (!inf) break;
+		if (strcmp(comm, "#") == 0) continue;
+		else if (strcmp(comm, "v") == 0)
+			poss.push_back(readvec3(inf));
+		else if (strcmp(comm, "vn") == 0)
+			norms.push_back(readvec3(inf));
+		else if (strcmp(comm, "vt") == 0)
+		{
+			float u, v;
+			inf >> u >> v;
+			texcords.push_back(float2(u, v));
+		}
+		else if (strcmp(comm, "f") == 0)
+		{
+			for (uint ifa = 0; ifa < 3; ++ifa)
+			{
+				vertex v;
+				uint ip, in, it;
+				inf >> ip;
+				v.pos = poss[ip - 1];
+				if ('/' == inf.peek())
+				{
+					inf.ignore();
+					if ('/' != inf.peek())
+					{
+						inf >> it;
+						v.tex = texcords[it - 1];
+					}
+					if ('/' == inf.peek())
+					{
+						inf.ignore();
+						inf >> in;
+						v.norm = norms[in - 1];
+					}
+				}
+
+				auto iv = find(vertices.begin(), vertices.end(), v);
+				if (iv == vertices.end())
+				{
+					indices.push_back(vertices.size());
+					vertices.push_back(v);
+				}
+				else
+				{
+					indices.push_back(distance(vertices.begin(), iv));
+				}
+			}
+		}
+	}
+
+	for (uint ix = 0; ix < indices.size(); ix += 3)
+	{
+		trd.push_back(tri(indices[ix], indices[ix + 1], indices[ix + 2], mesh_id));
+	}
+
+	build_bvh(td, vertices, trd);
+}
+
+void build_bvh(vector<bvh_node>& td, const vector<vertex>& vert, const vector<tri>& ts)
+{
+
+}
 
 
 class pxp_app : public dx_app
