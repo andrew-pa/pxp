@@ -11,6 +11,8 @@
 #include <input.h>
 #include <data_buffer.h>
 
+using namespace aldx;
+
 mesh* create_ndc_quad(ComPtr<ID3D11Device> device)
 {
 	dvertex v[] = 
