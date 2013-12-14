@@ -1,7 +1,7 @@
 pxp
 ===
 
-realtime gpu raytracing
+realtime gpu raytracer
 
 requires ALDX
 
