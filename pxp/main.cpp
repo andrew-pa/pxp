@@ -54,6 +54,10 @@ struct tri
 		: a(aa), b(bb), c(cc), mesh_id(mmesh_id)
 	{}
 };
+bool operator ==(const tri& a, const tri& b)
+{
+	return (a.a == b.a) && (a.b == b.b) && (a.c == b.c) && (a.mesh_id == b.mesh_id);
+}
 
 struct vertex
 {
@@ -64,6 +68,13 @@ struct vertex
 	vertex(float3 p, float3 n, float2 t)
 		: pos(p), norm(n), tex(t) {}
 };
+bool operator ==(const vertex& a, const vertex& b)
+{
+	return a.pos.x == b.pos.x && a.pos.y == b.pos.y && a.pos.z == b.pos.z &&
+		a.norm.x == b.norm.x && a.norm.y == b.norm.y && a.norm.z == b.norm.z &&
+		a.tex.x == b.tex.x && a.tex.y == b.tex.y;
+
+}
 
 struct smesh
 {
@@ -80,6 +91,8 @@ inline float3 readvec3(istream& i)
 	return float3(x, y, z);
 }
 
+
+void build_mesh_bvh(vector<bvh_node>& td, vector<vertex>& vert, const vector<tri>& ts);
 void load_obj(const string& fn, vector<bvh_node>& td, vector<tri>& trd, vector<vertex>& vertices,
 	uint mesh_id)
 {
@@ -168,25 +181,65 @@ float3 center(vector<vertex>& vert, tri t)
 	return one_third * (vert[t.a].pos + vert[t.b].pos + vert[t.c].pos);
 }
 
-void construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert, 
+inline float get_axis(int x, float3 v)
+{
+	if (x == 0) return v.x;
+	else if (x == 1) return v.y;
+	else if (x == 2) return v.z;
+	return 0;
+}
+
+inline void add_pnt(float3 p, float3& Min, float3& Max)
+{
+	if (p.x > Max.x) Max.x = p.x;
+	if (p.y > Max.y) Max.y = p.y;
+	if (p.z > Max.z) Max.z = p.z;
+
+	if (p.x < Min.x) Min.x = p.x;
+	if (p.y < Min.y) Min.y = p.y;
+	if (p.z < Min.z) Min.z = p.z;
+}
+
+
+int construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert, 
 	const vector<tri>& ts, vector<tri> yts, int axis)
 {
 	if (yts.size() == 0)
 	{
+		int r = td.size();
 		td.push_back(bvh_node(float3(0, 0, 0), float3(0, 0, 0), -2, -2));
+		return r;
 	}
 	else if (yts.size() == 1)
 	{
+		int r = td.size();
 		td.push_back(bvh_node(find_min_bound(vert, yts[0]),
 			find_max_bound(vert, yts[0]), -1,
 			distance(ts.begin(), find(ts.begin(), ts.end(), yts[0]))));
+		return r;
 	}
 	else 
 	{
+		int r = td.size();
+		td.push_back(bvh_node(float3(-1,0,0), float3(-1,0,0), -2, -2));
 		sort(yts.begin(), yts.end(), [&](tri a, tri b)
 		{
-			
+			float3 ac = center(vert, a);
+			float3 bc = center(vert, b);
+			return get_axis(axis, ac) > get_axis(axis, bc);
 		});
+		auto half = yts.size() / 2;
+		auto left_h = vector<tri>(yts.begin(), yts.begin() + half);
+		auto right_h = vector<tri>(yts.begin() + half, yts.end());
+		int left = construct_mesh_bvh_node(td, vert, ts, left_h, (axis + 1) % 3);
+		int right = construct_mesh_bvh_node(td, vert, ts, right_h, (axis + 1) % 3);
+		float3 min, max;
+		add_pnt(td[left].aabb_max, min, max);
+		add_pnt(td[left].aabb_min, min, max);
+		add_pnt(td[right].aabb_max, min, max);
+		add_pnt(td[right].aabb_min, min, max);
+		td[r] = (bvh_node(min, max, left, right));
+		return r;
 	}
 }
 
@@ -233,22 +286,24 @@ public:
 		buf = constant_buffer<b>(device, 0, { 0 });
 		
 		vector<bvh_node> bvhdata;
-		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), 1, 2));
-		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 0));
-		bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 1));
+		//bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), 1, 2));
+		//bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 0));
+		//bvhdata.push_back(bvh_node(float3(-1, -1, -1), float3(1, 1, 1), -1, 1));
 		vector<tri> tridata;
-		tridata.push_back(tri(0, 1, 2, 0));
-		tridata.push_back(tri(3, 4, 5, 0));
+		//tridata.push_back(tri(0, 1, 2, 0));
+		//tridata.push_back(tri(3, 4, 5, 0));
 		vector<vertex> vertexdata;
-		vertexdata.push_back(vertex(float3(-.5f, .5f, 0), float3(0, 0, 1), float2(0, 0)));
-		vertexdata.push_back(vertex(float3(.5f, -.5f, 0), float3(0, 0, 1), float2(1, 1)));
-		vertexdata.push_back(vertex(float3(-.5f, -.5f, 0), float3(0, 0, 1), float2(0, 1)));
+		//vertexdata.push_back(vertex(float3(-.5f, .5f, 0), float3(0, 0, 1), float2(0, 0)));
+		//vertexdata.push_back(vertex(float3(.5f, -.5f, 0), float3(0, 0, 1), float2(1, 1)));
+		//vertexdata.push_back(vertex(float3(-.5f, -.5f, 0), float3(0, 0, 1), float2(0, 1)));
 
-		vertexdata.push_back(vertex(float3(-.5f, .5f, 0), float3(0, 0, 1), float2(0, 0)));
-		vertexdata.push_back(vertex(float3(.5f, -.5f, 0), float3(0, 0, 1), float2(1, 1)));
-		vertexdata.push_back(vertex(float3(.5f, .5f, 0), float3(0, 0, 1), float2(0, 1)));
+		//vertexdata.push_back(vertex(float3(-.5f, .5f, 0), float3(0, 0, 1), float2(0, 0)));
+		//vertexdata.push_back(vertex(float3(.5f, -.5f, 0), float3(0, 0, 1), float2(1, 1)));
+		//vertexdata.push_back(vertex(float3(.5f, .5f, 0), float3(0, 0, 1), float2(0, 1)));
 		vector<smesh> meshdata;
 		meshdata.push_back(smesh(float4x4::identity(), float4(1, .5f, 0, 0)));
+
+		load_obj("blah.obj", bvhdata, tridata, vertexdata, 0);
 
 		scene_tree = data_buffer<bvh_node>(device, bvhdata);
 		scene_vertices = data_buffer<vertex>(device, vertexdata);
