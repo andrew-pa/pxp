@@ -150,11 +150,51 @@ void load_obj(const string& fn, vector<bvh_node>& td, vector<tri>& trd, vector<v
 		trd.push_back(tri(indices[ix], indices[ix + 1], indices[ix + 2], mesh_id));
 	}
 
-	build_bvh(td, vertices, trd);
+	build_mesh_bvh(td, vertices, trd);
 }
 
-void build_bvh(vector<bvh_node>& td, const vector<vertex>& vert, const vector<tri>& ts)
+
+float3 find_min_bound(vector<vertex>& vert, tri t)
 {
+	return float3(XMVectorMin(vert[t.a].pos, XMVectorMin(vert[t.b].pos, vert[t.c].pos)));
+}
+float3 find_max_bound(vector<vertex>& vert, tri t)
+{
+	return float3(XMVectorMax(vert[t.a].pos, XMVectorMax(vert[t.b].pos, vert[t.c].pos)));
+}
+float3 center(vector<vertex>& vert, tri t)
+{
+	static const float one_third = 1.f / 3.f;
+	return one_third * (vert[t.a].pos + vert[t.b].pos + vert[t.c].pos);
+}
+
+void construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert, 
+	const vector<tri>& ts, vector<tri> yts, int axis)
+{
+	if (yts.size() == 0)
+	{
+		td.push_back(bvh_node(float3(0, 0, 0), float3(0, 0, 0), -2, -2));
+	}
+	else if (yts.size() == 1)
+	{
+		td.push_back(bvh_node(find_min_bound(vert, yts[0]),
+			find_max_bound(vert, yts[0]), -1,
+			distance(ts.begin(), find(ts.begin(), ts.end(), yts[0]))));
+	}
+	else 
+	{
+		sort(yts.begin(), yts.end(), [&](tri a, tri b)
+		{
+			
+		});
+	}
+}
+
+void build_mesh_bvh(vector<bvh_node>& td, vector<vertex>& vert, const vector<tri>& ts)
+{
+	vector<tri> yts = ts;
+	construct_mesh_bvh_node(td, vert, ts, yts, 0);
+
 	//blahasdf
 }
 
