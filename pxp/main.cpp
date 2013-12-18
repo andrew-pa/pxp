@@ -213,8 +213,11 @@ int construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert,
 	else if (yts.size() == 1)
 	{
 		int r = td.size();
-		td.push_back(bvh_node(find_min_bound(vert, yts[0]),
-			find_max_bound(vert, yts[0]), -1,
+		float3 mn(0,0,0), mx(0,0,0);
+		add_pnt(vert[yts[0].a].pos, mn, mx);
+		add_pnt(vert[yts[0].b].pos, mn, mx);
+		add_pnt(vert[yts[0].c].pos, mn, mx);
+		td.push_back(bvh_node(mn, mx, -1,
 			distance(ts.begin(), find(ts.begin(), ts.end(), yts[0]))));
 		return r;
 	}

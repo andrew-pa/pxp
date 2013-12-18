@@ -128,11 +128,11 @@ bool hit_aabb(in float3 ro, in float3 rd, in float3 amin, in float3 amax, out fl
 	float tz2 = (amin.z - ro.z)*rrd.z;
 	tmin = min(tmin, min(tz1, tz2));
 	tmax = max(tmax, max(tz1, tz2));
-	t = min(tmax, tmin);
+	t = tmin;
 	return tmax >= tmin;
 }
 
-static const int stack_size = 8;
+static const int stack_size = 16;
 
 bool scene_hit(in float3 ro, in float3 rd,
 	inout float t, out float3 norm, out float2 tex, out uint mesh_id)
@@ -201,7 +201,7 @@ bool scene_hit(in float3 ro, in float3 rd,
 		//		}
 		//	}
 		//}
-		else if (hit_aabb(ro, rd, n.aabb_min, n.aabb_max))
+		else// if (hit_aabb(ro, rd, n.aabb_min, n.aabb_max))
 		{
 			stack_ptr++;
 			float left_t = -1;
@@ -218,9 +218,16 @@ bool scene_hit(in float3 ro, in float3 rd,
 					stack[stack_ptr] = n.left_ptr;
 					stack_ptr--;
 				}
+				else if(left_t > right_t)
+				{
+					stack[stack_ptr] = n.right_ptr;
+					stack_ptr--;
+				}
 				else
 				{
 					stack[stack_ptr] = n.right_ptr;
+					stack_ptr--;
+					stack[stack_ptr] = n.left_ptr;
 					stack_ptr--;
 				}
 			}
