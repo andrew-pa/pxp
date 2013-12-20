@@ -34,16 +34,46 @@ static const D3D11_INPUT_ELEMENT_DESC posnormtex_layout[] =
 	{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 };
+#undef min
+#undef max
+struct aabb
+{
+	float3 min, max;
 
+	inline aabb& add_pnt(float3 p)
+	{
+		if (p.x > max.x) max.x = p.x;
+		if (p.y > max.y) max.y = p.y;
+		if (p.z > max.z) max.z = p.z;
+
+		if (p.x < min.x) min.x = p.x;
+		if (p.y < min.y) min.y = p.y;
+		if (p.z < min.z) min.z = p.z;
+		return *this;
+	}
+
+	aabb(float3 m, float3 x)
+		: min(m), max(x) { }
+	aabb()
+		: min(0, 0, 0), max(0, 0, 0) { }
+	aabb(aabb a, aabb b)
+		: min(a.min), max(a.max)
+	{
+		add_pnt(b.max);
+		add_pnt(b.min);
+	}
+};
 
 struct bvh_node
 {
-	float3 aabb_min;
-	uint left_ptr; //-1 = right_ptr is ptr to triangle
-	float3 aabb_max;
+	aabb bounds;
+	uint left_ptr;
 	uint right_ptr;
-	bvh_node(float3 min, float3 max, uint l, uint r)
-		: aabb_min(min), aabb_max(max), left_ptr(l), right_ptr(r) {}
+	bool is_left_leaf;
+	bool is_right_leaf;
+	float2 extra;
+	bvh_node(aabb b, uint l, uint r, uint x, bool leafL, bool leafR)
+		: bounds(b), left_ptr(l), right_ptr(r), is_left_leaf(leafL), is_right_leaf(leafR) {}
 };
 
 struct tri
@@ -186,45 +216,43 @@ inline float get_axis(int x, float3 v)
 	if (x == 0) return v.x;
 	else if (x == 1) return v.y;
 	else if (x == 2) return v.z;
-	return 0;
+	throw exception("index out of range");
 }
 
-inline void add_pnt(float3 p, float3& Min, float3& Max)
+struct cret
 {
-	if (p.x > Max.x) Max.x = p.x;
-	if (p.y > Max.y) Max.y = p.y;
-	if (p.z > Max.z) Max.z = p.z;
+	int ptr;
+	bool is_leaf;
+	cret(int p, bool l)
+		: ptr(p), is_leaf(l) {}
+};
 
-	if (p.x < Min.x) Min.x = p.x;
-	if (p.y < Min.y) Min.y = p.y;
-	if (p.z < Min.z) Min.z = p.z;
-}
-
-
-int construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert, 
-	const vector<tri>& ts, vector<tri> yts, int axis)
+cret construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert, 
+	const vector<tri>& ts, vector<tri> yts, int axis, int parent)
 {
 	if (yts.size() == 0)
 	{
-		int r = td.size();
-		td.push_back(bvh_node(float3(0, 0, 0), float3(0, 0, 0), -2, -2));
-		return r;
+		return cret(-1, true);
 	}
 	else if (yts.size() == 1)
 	{
-		int r = td.size();
-		float3 mn(0,0,0), mx(0,0,0);
-		add_pnt(vert[yts[0].a].pos, mn, mx);
-		add_pnt(vert[yts[0].b].pos, mn, mx);
-		add_pnt(vert[yts[0].c].pos, mn, mx);
-		td.push_back(bvh_node(mn, mx, -1,
-			distance(ts.begin(), find(ts.begin(), ts.end(), yts[0]))));
-		return r;
+		return cret(distance(ts.begin(), find(ts.begin(), ts.end(), yts[0])), true);
+		//int r = td.size();
+		//float3 mn(FLT_MAX,FLT_MAX,FLT_MAX), mx(FLT_MIN,FLT_MIN,FLT_MIN);
+		//aabb b(mn, mx);
+		//b.add_pnt(vert[yts[0].a].pos);
+		//b.add_pnt(vert[yts[0].b].pos);
+		//b.add_pnt(vert[yts[0].c].pos);
+		
+		//td.push_back(bvh_node(b, distance(ts.begin(), find(ts.begin(), ts.end(), yts[0])), axis));
+		//td.push_back(bvh_node(mn, mx, -1,
+		//	distance(ts.begin(), find(ts.begin(), ts.end(), yts[0])), axis));
+		//return r;
 	}
 	else 
 	{
 		int r = td.size();
-		td.push_back(bvh_node(float3(-1,0,0), float3(-1,0,0), -2, -2));
+		td.push_back(bvh_node(aabb(), -1, -1, 0, false, false));
 		sort(yts.begin(), yts.end(), [&](tri a, tri b)
 		{
 			float3 ac = center(vert, a);
@@ -234,22 +262,37 @@ int construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert,
 		auto half = yts.size() / 2;
 		auto left_h = vector<tri>(yts.begin(), yts.begin() + half);
 		auto right_h = vector<tri>(yts.begin() + half, yts.end());
-		int left = construct_mesh_bvh_node(td, vert, ts, left_h, (axis + 1) % 3);
-		int right = construct_mesh_bvh_node(td, vert, ts, right_h, (axis + 1) % 3);
-		float3 min, max;
-		add_pnt(td[left].aabb_max, min, max);
-		add_pnt(td[left].aabb_min, min, max);
-		add_pnt(td[right].aabb_max, min, max);
-		add_pnt(td[right].aabb_min, min, max);
-		td[r] = (bvh_node(min, max, left, right));
-		return r;
+		cret left = construct_mesh_bvh_node(td, vert, ts, left_h, (rand()) % 3, r);
+		cret right = construct_mesh_bvh_node(td, vert, ts, right_h, (rand()) % 3, r);
+		aabb bunds;
+		if (left.is_leaf)
+		{
+			tri t = ts[left.ptr];
+			bunds.add_pnt(vert[t.a].pos);
+			bunds.add_pnt(vert[t.b].pos);
+			bunds.add_pnt(vert[t.c].pos);
+		}
+		else
+			bunds = aabb(bunds, td[left.ptr].bounds);
+		if (right.is_leaf)
+		{
+			tri t = ts[right.ptr];
+			bunds.add_pnt(vert[t.a].pos);
+			bunds.add_pnt(vert[t.b].pos);
+			bunds.add_pnt(vert[t.c].pos);
+		}
+		else
+			bunds = aabb(bunds, td[right.ptr].bounds);
+
+		td[r] = (bvh_node(bunds, left.ptr, right.ptr, axis, left.is_leaf, right.is_leaf));
+		return cret(r, false);
 	}
 }
 
 void build_mesh_bvh(vector<bvh_node>& td, vector<vertex>& vert, const vector<tri>& ts)
 {
 	vector<tri> yts = ts;
-	construct_mesh_bvh_node(td, vert, ts, yts, 0);
+	construct_mesh_bvh_node(td, vert, ts, yts, 0, 0);
 
 	//blahasdf
 }
