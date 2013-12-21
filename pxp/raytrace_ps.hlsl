@@ -20,7 +20,9 @@ struct ray
 };
 struct aabb
 {
-	float3 min, max;
+	float3 min;
+	float extra;
+	float3 max;
 };
 
 struct bvh_node
@@ -28,9 +30,8 @@ struct bvh_node
 	aabb bounds;
 	uint left_ptr;
 	uint right_ptr;
-	bool is_left_leaf;
-	bool is_right_leaf;
-	float2 extra;
+	uint is_left_leaf;
+	uint is_right_leaf;
 };
 
 float index(in uint a, in float3 b)
@@ -377,7 +378,113 @@ bool hit_aabb(in ray r, in aabb a, out float t)
 
 bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uint mid)
 {
+	norm = float3(0, 0, 0);
+	tex = float2(0, 0);
+	mid = -1;
 
+	uint stack[64];
+	uint stkptr = 0;
+	stack[stkptr] = 0;
+	stkptr++;
+	while (stkptr != 0)
+	{
+		stkptr--;
+		bvh_node n = scene_tree[stack[stkptr]];		//pop a node off the stack
+
+		float lef_t = t;
+		float rgh_t = t;
+		bool lef_h = false;
+		bool rgh_h = false;
+
+		float3 lnorm = norm, rnorm = norm;
+		float2 ltex = tex, rtex = tex;
+		
+		if (n.is_left_leaf == 1)	//check the left node
+		{
+			lef_h = triangle_hit(n.left_ptr, r, lef_t, lnorm, ltex); //check the left node as a ptr to a triangle
+		}
+		else
+		{
+			lef_h = hit_aabb(r, scene_tree[n.left_ptr].bounds, lef_t);	//check the left node as a ptr to a node
+		}
+		if (n.is_right_leaf == 1)	//check the right node
+		{
+			rgh_h = triangle_hit(n.right_ptr, r, rgh_t, rnorm, rtex);	//check the right node as a ptr to a triangle
+		}
+		else
+		{
+			rgh_h = hit_aabb(r, scene_tree[n.right_ptr].bounds, rgh_t);	//check the right node as a ptr to a node
+		}
+		
+		if (lef_h && rgh_h)	//did we hit both nodes?
+		{
+			if (lef_t < rgh_t)	//check to see if the left is closer than the right
+			{
+				if (n.is_left_leaf == 1)	//the left node was closer. is it a triangle or a node?
+				{
+					norm = lnorm;
+					tex = ltex;
+					t = lef_t;
+					return true;	//the left node is a node, so return because we found a hit
+				}
+				else     //the left node was a node, push it on the stack for traversal
+				{
+					stack[stkptr] = n.left_ptr;
+					stkptr++;
+				}
+			}
+			else if(rgh_t < lef_t)	// the right node was closer than the left node
+			{
+				if (n.is_right_leaf == 1)	//is the right node a triangle?
+				{
+					norm = rnorm;
+					tex = rtex;
+					t = rgh_t;
+					return true;	//the right node is a triangle, so return because we found a hit
+				}
+				else
+				{
+					stack[stkptr] = n.right_ptr;	//the right node is a node, push it on the stack for traversal
+					stkptr++;
+				}
+			}
+		}
+		else     //if we only hit one
+		{
+			if (lef_h)	//if we hit the left node
+			{
+				if (n.is_left_leaf == 1)	//is the left node a triangle?
+				{
+					norm = lnorm;
+					tex = ltex;
+					t = lef_t;
+					return true;	//return as we hit a triangle
+				}
+				else
+				{
+					stack[stkptr] = n.left_ptr;	//push the left node on the stack for traversal as we hit it
+					stkptr++;
+				}
+			}
+			if (rgh_h)	//same as the left node
+			{
+				if (n.is_right_leaf == 1)
+				{
+					norm = rnorm;
+					tex = rtex;
+					t = rgh_t;
+					return true;
+				}
+				else
+				{
+					stack[stkptr] = n.right_ptr;
+					stkptr++;
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 float4 main(psinput i) : SV_TARGET

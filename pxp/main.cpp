@@ -38,7 +38,9 @@ static const D3D11_INPUT_ELEMENT_DESC posnormtex_layout[] =
 #undef max
 struct aabb
 {
-	float3 min, max;
+	float3 min;
+	float blah;
+	float3 max;
 
 	inline aabb& add_pnt(float3 p)
 	{
@@ -69,11 +71,10 @@ struct bvh_node
 	aabb bounds;
 	uint left_ptr;
 	uint right_ptr;
-	bool is_left_leaf;
-	bool is_right_leaf;
-	float2 extra;
+	uint is_left_leaf;
+	uint is_right_leaf;
 	bvh_node(aabb b, uint l, uint r, uint x, bool leafL, bool leafR)
-		: bounds(b), left_ptr(l), right_ptr(r), is_left_leaf(leafL), is_right_leaf(leafR) {}
+		: bounds(b), left_ptr(l), right_ptr(r), is_left_leaf(leafL ? 1 : 0), is_right_leaf(leafR ? 1 : 0) {}
 };
 
 struct tri
@@ -292,8 +293,8 @@ cret construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert,
 void build_mesh_bvh(vector<bvh_node>& td, vector<vertex>& vert, const vector<tri>& ts)
 {
 	vector<tri> yts = ts;
-	construct_mesh_bvh_node(td, vert, ts, yts, 0, 0);
-
+	cret r = construct_mesh_bvh_node(td, vert, ts, yts, 0, 0);
+	//printf("%i", r.ptr);
 	//blahasdf
 }
 
