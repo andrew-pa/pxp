@@ -424,6 +424,7 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 			rgh_h = hit_aabb(r, scene_tree[n.right_ptr].bounds, rgh_t);	//check the right node as a ptr to a node
 		}
 		
+		//when returning because we hit, we first need to traverse the other side of the tree so that we know that we didn't hit somthing closer there
 		if (lef_h && rgh_h)	//did we hit both nodes?
 		{
 			if (lef_t < rgh_t)	//check to see if the left is closer than the right

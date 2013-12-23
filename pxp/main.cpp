@@ -320,7 +320,7 @@ class pxp_app : public dx_app
 	data_buffer<smesh> scene_meshes;
 
 public:
-	pxp_app() : dx_app(4, true),
+	pxp_app() : dx_app(true),
 		cam(float3(0,0,-2), float3(0, 0, 0), 0.1f, 1000.f, to_radians(45.f))
 	{
 	}
