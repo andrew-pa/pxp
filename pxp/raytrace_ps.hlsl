@@ -120,16 +120,22 @@ bool hit_aabb(in ray r, in aabb a)
 	float3 rrd = 1.f / r.d;
 	float tx1 = (a.min.x - r.o.x)*rrd.x;
 	float tx2 = (a.max.x - r.o.x)*rrd.x;
+
 	float tmin = min(tx1, tx2);
 	float tmax = max(tx1, tx2);
+	
 	float ty1 = (a.min.y - r.o.y)*rrd.y;
 	float ty2 = (a.max.y - r.o.y)*rrd.y;
+	
 	tmin = min(tmin, min(ty1, ty2));
 	tmax = max(tmax, max(ty1, ty2));
+	
 	float tz1 = (a.min.z - r.o.z)*rrd.z;
-	float tz2 = (a.min.z - r.o.z)*rrd.z;
+	float tz2 = (a.max.z - r.o.z)*rrd.z;
+	
 	tmin = min(tmin, min(tz1, tz2));
 	tmax = max(tmax, max(tz1, tz2));
+	
 	return tmax >= tmin;
 }
 
@@ -146,7 +152,7 @@ bool hit_aabb(in ray r, in aabb a, out float t)
 	tmin = min(tmin, min(ty1, ty2));
 	tmax = max(tmax, max(ty1, ty2));
 	float tz1 = (a.min.z - r.o.z)*rrd.z;
-	float tz2 = (a.min.z - r.o.z)*rrd.z;
+	float tz2 = (a.max.z - r.o.z)*rrd.z;
 	tmin = min(tmin, min(tz1, tz2));
 	tmax = max(tmax, max(tz1, tz2));
 	t = tmax;
@@ -376,11 +382,13 @@ bool hit_aabb(in ray r, in aabb a, out float t)
 //	return false;
 //}
 
-bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uint mid)
+bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uint mid, out float3 debug)
 {
 	norm = float3(0, 0, 0);
 	tex = float2(0, 0);
 	mid = -1;
+
+	//debug.z = 0;
 
 	uint stack[64];
 	uint stkptr = 0;
@@ -425,10 +433,14 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 					norm = lnorm;
 					tex = ltex;
 					t = lef_t;
+					debug.x += 0.2f;
 					return true;	//the left node is a node, so return because we found a hit
 				}
 				else     //the left node was a node, push it on the stack for traversal
 				{
+					debug.x += 0.2f;
+					stack[stkptr] = n.right_ptr;
+					stkptr++;
 					stack[stkptr] = n.left_ptr;
 					stkptr++;
 				}
@@ -440,11 +452,43 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 					norm = rnorm;
 					tex = rtex;
 					t = rgh_t;
+					debug.y += 0.2f;
 					return true;	//the right node is a triangle, so return because we found a hit
 				}
 				else
 				{
+					debug.y += 0.2f;
+					stack[stkptr] = n.left_ptr;
+					stkptr++;
 					stack[stkptr] = n.right_ptr;	//the right node is a node, push it on the stack for traversal
+					stkptr++;
+				}
+			}
+			else
+			{
+				debug.z += 0.5f;
+				if (n.is_left_leaf == 1)	//is the left node a triangle?
+				{
+					norm = lnorm;
+					tex = ltex;
+					t = lef_t;
+					return true;	//return as we hit a triangle
+				}
+				else
+				{
+					stack[stkptr] = n.left_ptr;	//push the left node on the stack for traversal as we hit it
+					stkptr++;
+				}
+				if (n.is_right_leaf == 1)
+				{
+					norm = rnorm;
+					tex = rtex;
+					t = rgh_t;
+					return true;
+				}
+				else
+				{
+					stack[stkptr] = n.right_ptr;
 					stkptr++;
 				}
 			}
@@ -458,10 +502,12 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 					norm = lnorm;
 					tex = ltex;
 					t = lef_t;
+					debug.x += 0.2f;
 					return true;	//return as we hit a triangle
 				}
 				else
 				{
+					debug.x += 0.2f;
 					stack[stkptr] = n.left_ptr;	//push the left node on the stack for traversal as we hit it
 					stkptr++;
 				}
@@ -473,10 +519,12 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 					norm = rnorm;
 					tex = rtex;
 					t = rgh_t;
+					debug.y += 0.2f;
 					return true;
 				}
 				else
 				{
+					debug.y += 0.2f;
 					stack[stkptr] = n.right_ptr;
 					stkptr++;
 				}
@@ -498,15 +546,16 @@ float4 main(psinput i) : SV_TARGET
 	float t = 10000;
 	float3 norm = float3(0, 0, 0); float2 tex = float2(0, 0);
 		uint mid = -1;
-	if (scene_hit(r, t, norm, tex, mid))
+	float3 debug = float3(0, 0, 0);
+	if (scene_hit(r, t, norm, tex, mid, debug))
 	{
 		mesh m = scene_meshes[mid];
-		float3 blah = norm + m.color.xyz;
+		float3 blah = debug;
 		return float4(blah, 1);//m.color.xyz, 1);
 	}
 	else
 	{
-		return float4(0,0,0, 1);
+		return float4(debug, 1);
 	}
 
 

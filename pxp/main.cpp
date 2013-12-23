@@ -263,8 +263,8 @@ cret construct_mesh_bvh_node(vector<bvh_node>& td, vector<vertex>& vert,
 		auto half = yts.size() / 2;
 		auto left_h = vector<tri>(yts.begin(), yts.begin() + half);
 		auto right_h = vector<tri>(yts.begin() + half, yts.end());
-		cret left = construct_mesh_bvh_node(td, vert, ts, left_h, (rand()) % 3, r);
-		cret right = construct_mesh_bvh_node(td, vert, ts, right_h, (rand()) % 3, r);
+		cret left = construct_mesh_bvh_node(td, vert, ts, left_h, (axis+1) % 3, r);
+		cret right = construct_mesh_bvh_node(td, vert, ts, right_h, (axis+1) % 3, r);
 		aabb bunds;
 		if (left.is_leaf)
 		{
