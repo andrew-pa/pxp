@@ -67,8 +67,15 @@ StructuredBuffer<vertex> scene_vertices;
 StructuredBuffer<tri> scene_triangles;
 StructuredBuffer<mesh> scene_meshes;
 
+struct hit_rec
+{
+	float t;
+	float3 norm;
+	float2 tex;
+};
+
 bool triangle_hit(uint triptr, in ray r,
-	inout float t, out float3 norm, out float2 tex)
+	inout hit_rec hr)
 {
 	tri ttt = scene_triangles[triptr];
 	float3 v0 = scene_vertices[ttt.a].pos;
@@ -91,12 +98,12 @@ bool triangle_hit(uint triptr, in ray r,
 	if (v < 0 || u + v > 1)
 		return false;
 	float nt = dot(e2, qv)*idet;
-	if (nt > 0 && nt < t)
+	if (nt > 0 && nt < hr.t)
 	{
-		t = nt;
+		hr.t = nt;
 		float w = 1 - (u + v);
-		norm = scene_vertices[ttt.a].norm*w + scene_vertices[ttt.b].norm*u + scene_vertices[ttt.c].norm*v;
-		tex = scene_vertices[ttt.a].tex*w + scene_vertices[ttt.b].tex*v + scene_vertices[ttt.c].tex*u;
+		hr.norm = scene_vertices[ttt.a].norm*w + scene_vertices[ttt.b].norm*u + scene_vertices[ttt.c].norm*v;
+		hr.tex = scene_vertices[ttt.a].tex*w + scene_vertices[ttt.b].tex*v + scene_vertices[ttt.c].tex*u;
 		return true;
 	}
 	return false;
@@ -141,6 +148,7 @@ bool hit_aabb(in ray r, in aabb a)
 
 bool hit_aabb(in ray r, in aabb a, out float t)
 {
+	t = 0;
 	if (inside_aabb(r.o, a.min, a.max)) return true;
 	float3 rrd = 1.f / r.d;
 	float tx1 = (a.min.x - r.o.x)*rrd.x;
@@ -382,10 +390,8 @@ bool hit_aabb(in ray r, in aabb a, out float t)
 //	return false;
 //}
 
-bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uint mid, out float3 debug)
+bool scene_hit(in ray r, inout hit_rec hr, out uint mid, out float3 debug)
 {
-	norm = float3(0, 0, 0);
-	tex = float2(0, 0);
 	mid = -1;
 
 	//debug.z = 0;
@@ -394,48 +400,54 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 	uint stkptr = 0;
 	stack[stkptr] = 0;
 	stkptr++;
+
+	hit_rec ch = hr;
+	bool ah = false;
+
 	while (stkptr != 0)
 	{
 		stkptr--;
 		bvh_node n = scene_tree[stack[stkptr]];		//pop a node off the stack
 
-		float lef_t = t;
-		float rgh_t = t;
 		bool lef_h = false;
 		bool rgh_h = false;
-
-		float3 lnorm = norm, rnorm = norm;
-		float2 ltex = tex, rtex = tex;
+		hit_rec lh = hr;
+		hit_rec rh = hr;
 		
 		if (n.is_left_leaf == 1)	//check the left node
 		{
-			lef_h = triangle_hit(n.left_ptr, r, lef_t, lnorm, ltex); //check the left node as a ptr to a triangle
+			lef_h = triangle_hit(n.left_ptr, r, lh); //check the left node as a ptr to a triangle
 		}
 		else
 		{
-			lef_h = hit_aabb(r, scene_tree[n.left_ptr].bounds, lef_t);	//check the left node as a ptr to a node
+			lef_h = hit_aabb(r, scene_tree[n.left_ptr].bounds, lh.t);	//check the left node as a ptr to a node
 		}
 		if (n.is_right_leaf == 1)	//check the right node
 		{
-			rgh_h = triangle_hit(n.right_ptr, r, rgh_t, rnorm, rtex);	//check the right node as a ptr to a triangle
+			rgh_h = triangle_hit(n.right_ptr, r, rh);	//check the right node as a ptr to a triangle
 		}
 		else
 		{
-			rgh_h = hit_aabb(r, scene_tree[n.right_ptr].bounds, rgh_t);	//check the right node as a ptr to a node
+			rgh_h = hit_aabb(r, scene_tree[n.right_ptr].bounds, rh.t);	//check the right node as a ptr to a node
 		}
 		
 		//when returning because we hit, we first need to traverse the other side of the tree so that we know that we didn't hit somthing closer there
 		if (lef_h && rgh_h)	//did we hit both nodes?
 		{
-			if (lef_t < rgh_t)	//check to see if the left is closer than the right
+			if (lh.t < rh.t)	//check to see if the left is closer than the right
 			{
 				if (n.is_left_leaf == 1)	//the left node was closer. is it a triangle or a node?
 				{
-					norm = lnorm;
-					tex = ltex;
-					t = lef_t;
-					debug.x += 0.2f;
-					return true;	//the left node is a node, so return because we found a hit
+					if (lh.t < ch.t) //is this hit closer than the last one
+					{
+						ch.norm = lh.norm;
+						ch.tex = lh.tex;
+						ch.t = lh.t;
+						debug.x += 0.2f;
+						ah = true;
+						stack[stkptr] = n.right_ptr;
+						stkptr++;
+					}
 				}
 				else     //the left node was a node, push it on the stack for traversal
 				{
@@ -446,15 +458,20 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 					stkptr++;
 				}
 			}
-			else if(rgh_t < lef_t)	// the right node was closer than the left node
+			else if(rh.t < lh.t)	// the right node was closer than the left node
 			{
 				if (n.is_right_leaf == 1)	//is the right node a triangle?
 				{
-					norm = rnorm;
-					tex = rtex;
-					t = rgh_t;
-					debug.y += 0.2f;
-					return true;	//the right node is a triangle, so return because we found a hit
+					if (rh.t < ch.t) //is this hit closer than the last one
+					{
+						ch.norm = rh.norm;
+						ch.tex = rh.tex;
+						ch.t = rh.t;
+						debug.x += 0.2f;
+						ah = true;
+						stack[stkptr] = n.left_ptr;
+						stkptr++;
+					}
 				}
 				else
 				{
@@ -470,10 +487,16 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 				debug.z += 0.5f;
 				if (n.is_left_leaf == 1)	//is the left node a triangle?
 				{
-					norm = lnorm;
-					tex = ltex;
-					t = lef_t;
-					return true;	//return as we hit a triangle
+					if (lh.t < ch.t)
+					{
+						ch.norm = lh.norm;
+						ch.tex = lh.tex;
+						ch.t = lh.t;
+						debug.x += 0.2f;
+						ah = true;
+						stack[stkptr] = n.right_ptr;
+						stkptr++;
+					}
 				}
 				else
 				{
@@ -482,10 +505,16 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 				}
 				if (n.is_right_leaf == 1)
 				{
-					norm = rnorm;
-					tex = rtex;
-					t = rgh_t;
-					return true;
+					if (rh.t < ch.t)
+					{
+						ch.norm = rh.norm;
+						ch.tex = rh.tex;
+						ch.t = rh.t;
+						debug.x += 0.2f;
+						ah = true;
+						stack[stkptr] = n.left_ptr;
+						stkptr++;
+					}
 				}
 				else
 				{
@@ -500,11 +529,16 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 			{
 				if (n.is_left_leaf == 1)	//is the left node a triangle?
 				{
-					norm = lnorm;
-					tex = ltex;
-					t = lef_t;
-					debug.x += 0.2f;
-					return true;	//return as we hit a triangle
+					if (lh.t < ch.t)
+					{
+						ch.norm = lh.norm;
+						ch.tex = lh.tex;
+						ch.t = lh.t;
+						debug.x += 0.2f;
+						ah = true;
+						stack[stkptr] = n.right_ptr;
+						stkptr++;
+					}
 				}
 				else
 				{
@@ -517,11 +551,16 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 			{
 				if (n.is_right_leaf == 1)
 				{
-					norm = rnorm;
-					tex = rtex;
-					t = rgh_t;
-					debug.y += 0.2f;
-					return true;
+					if (rh.t < ch.t)
+					{
+						ch.norm = rh.norm;
+						ch.tex = rh.tex;
+						ch.t = rh.t;
+						debug.y += 0.2f;
+						ah = true;
+						stack[stkptr] = n.left_ptr;
+						stkptr++;
+					}
 				}
 				else
 				{
@@ -533,7 +572,8 @@ bool scene_hit(in ray r, inout float t, out float3 norm, out float2 tex, out uin
 		}
 	}
 
-	return false;
+	hr = ch;
+	return ah;
 }
 
 float4 main(psinput i) : SV_TARGET
@@ -544,15 +584,17 @@ float4 main(psinput i) : SV_TARGET
 	ray r;
 	r.o = cam_o;
 	r.d = normalize(p.x*uu + p.y*vv + 2.5*ww);
-	float t = 10000;
-	float3 norm = float3(0, 0, 0); float2 tex = float2(0, 0);
-		uint mid = -1;
+	hit_rec hr;
+	hr.t = 10000;
+	hr.norm = float3(0, 0, 0);
+	hr.tex = float2(0, 0);
+	uint mid = -1;
 	float3 debug = float3(0, 0, 0);
-	if (scene_hit(r, t, norm, tex, mid, debug))
+	if (scene_hit(r, hr, mid, debug))
 	{
 		mesh m = scene_meshes[mid];
-		float3 blah = debug;
-		return float4(blah, 1);//m.color.xyz, 1);
+		// debug;
+		return float4(hr.norm, 1);//m.color.xyz, 1);
 	}
 	else
 	{
